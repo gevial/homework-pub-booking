@@ -195,29 +195,40 @@ async def run_scenario(real: bool) -> int:
     # populate _TOOL_CALL_LOG before the real scenario runs.
     clear_log()
 
+    task = (
+        "Research an Edinburgh pub and produce an HTML event flyer.\n\n"
+        "Event details:\n"
+        "  - party size: 6\n"
+        "  - date: 2026-04-25 (a Saturday)\n"
+        "  - time: 19:30\n"
+        "  - area: Haymarket\n"
+        "  - duration: 3 hours\n"
+        "  - catering: bar_snacks\n\n"
+        "You MUST complete exactly TWO subgoals in order:\n\n"
+        "SUBGOAL 1 — Research (run all three tools in a single turn, in parallel):\n"
+        "  a) venue_search(near='Haymarket', party_size=6, budget_max_gbp=800)\n"
+        "     → pick the first result; note its 'id' field as <venue_id>\n"
+        "  b) get_weather(city='edinburgh', date='2026-04-25')\n"
+        "  c) calculate_cost(venue_id=<venue_id>, party_size=6,\n"
+        "                    duration_hours=3, catering_tier='bar_snacks')\n\n"
+        "SUBGOAL 2 — Publish (run these two tools in order):\n"
+        "  a) generate_flyer(event_details={\n"
+        "       'venue_name': <name from venue_search>,\n"
+        "       'venue_address': <address from venue_search>,\n"
+        "       'date': '2026-04-25', 'time': '19:30', 'party_size': 6,\n"
+        "       'condition': <from get_weather>, 'temperature_c': <from get_weather>,\n"
+        "       'total_gbp': <from calculate_cost>,\n"
+        "       'deposit_required_gbp': <from calculate_cost>\n"
+        "     })\n"
+        "  b) complete_task(result={'flyer': 'workspace/flyer.html'})\n\n"
+        "Do NOT call complete_task before generate_flyer has succeeded. "
+        "The grade depends on workspace/flyer.html existing with real data."
+    )
+
     with example_sessions_dir("ex5-edinburgh-research", persist=real) as sessions_root:
         session = create_session(
             scenario="edinburgh-research",
-            task=(
-                "Research an Edinburgh pub and produce an HTML event flyer.\n\n"
-                "Context:\n"
-                "  - party size: 6\n"
-                "  - date: 2026-04-25 (a Saturday)\n"
-                "  - time: 19:30\n"
-                "  - area: near Haymarket station, Edinburgh\n\n"
-                "REQUIRED tool sequence (all four tools MUST run, in order):\n"
-                "  1. venue_search(near='Haymarket', party_size=6, budget_max_gbp=800)\n"
-                "  2. get_weather(city='edinburgh', date='2026-04-25')\n"
-                "  3. calculate_cost(venue_id=<chosen pub's id>, party_size=6,\n"
-                "                    duration_hours=3, catering_tier='bar_snacks')\n"
-                "  4. generate_flyer(event_details={...})  <-- MUST be called\n"
-                "  5. complete_task(result={'flyer': 'workspace/flyer.html', ...})\n\n"
-                "Do NOT call complete_task until you have called generate_flyer. "
-                "The scenario is graded by the existence of workspace/flyer.html, "
-                "not by your final text response. The flyer is HTML — exact tool "
-                "names and argument shapes are in each tool's docstring; call them "
-                "exactly as described."
-            ),
+            task=task,
             sessions_dir=sessions_root,
         )
         print(f"Session {session.session_id}")
@@ -247,7 +258,7 @@ async def run_scenario(real: bool) -> int:
             executor=DefaultExecutor(model=executor_model, client=client, tools=tools),  # type: ignore[arg-type]
         )
 
-        result = await half.run(session, {"task": "research Edinburgh venue and write flyer"})
+        result = await half.run(session, {"task": task})
         print(f"\nLoop half outcome: {result.next_action}")
         print(f"  summary: {result.summary}")
 
